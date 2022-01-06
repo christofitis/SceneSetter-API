@@ -6,6 +6,7 @@ from threading import Thread
 from flask import Flask
 import json
 from dbconnector import query_db, update_db
+from noise import pnoise3
 
 
 pixel_pin = board.D21
@@ -53,7 +54,7 @@ def run_find_led(num):
 
 
 def start(data):
-    query = query_db('SELECT pattern, start, end, red_on, green_on, blue_on, red_off, green_off, blue_off, crawl_length, move_right, crawl_bounce, speed_max, fade_speed_min, fade_speed_max, fade_speed_multiplier, fade_up_chance_ratio, colors, on_frequency, off_frequency, marquee_num_on, marquee_num_off, brightness FROM scene_layouts WHERE sceneid = ' + str(data['sceneid']))
+    query = query_db('SELECT pattern, start, end, red_on, green_on, blue_on, red_off, green_off, blue_off, crawl_length, move_right, crawl_bounce, speed_max, fade_speed_min, fade_speed_max, fade_speed_multiplier, fade_up_chance_ratio, colors, on_frequency, off_frequency, marquee_num_on, marquee_num_off, brightness, octives, persistence, lacunarity FROM scene_layouts WHERE sceneid = ' + str(data['sceneid']))
     scene_data = []
     for layout in query:
         scene_data.append(
@@ -80,7 +81,10 @@ def start(data):
                 'off_frequency': layout[19],
                 'marquee_num_on': layout[20],
                 'marquee_num_off': layout[21],
-                'brightness': layout[22]
+                'brightness': layout[22],
+                'octives': layout[23],
+                'persistence': layout[24],
+                'lacunarity': layout[25],
             }
         )
     for pattern_data in scene_data:
@@ -134,10 +138,129 @@ def crawl(pattern_data):
             for p in worm_body:
                 pixels[max(0, min(num_pixels,p))] = (int(red_on*brightness), int(green_on*brightness), int(blue_on*brightness))
             pixels.show()
-            #time.sleep(crawl_speed)
+            time.sleep(crawl_speed)
 
+
+# def fire(pattern_data):
+#     fire_start = max(0, pattern_data['start']-1)
+#     fire_end = min(pattern_data['end'], num_pixels)
+#     fade_speed_multiplier = pattern_data['fade_speed_multiplier'] #higher number = slower fade
+#     fade_speed_min = pattern_data['fade_speed_min'] #larger number = faster fade
+#     fade_speed_max = pattern_data['fade_speed_max']
+#     fade_up_chance_ratio = pattern_data['fade_up_chance_ratio']  #a out of b chance of lighting up
+#     red_on = pattern_data['red_on']
+#     green_on = pattern_data['green_on']
+#     blue_on = pattern_data['blue_on']
+#     brightness = pattern_data['brightness']
+#     red_off = 0 #off values must stay at 0
+#     green_off = 0
+#     blue_off = 0
+
+#     pixel_data = []
+#     #initialize strip
+#     for p in range(fire_start, fire_end):
+#         pixel = {
+#             'id': p, 
+#             'fade_speed': random.uniform(fade_speed_min, fade_speed_max)/fade_speed_multiplier,
+#             'fade_up': random.randrange(0,1),
+#             'red_current': 0,
+#             'green_current': 0,
+#             'blue_current': 0,
+#         }
+#         pixel_data.append(pixel)
+
+#     with app.app_context():
+#         while(is_running()):
+#             for p in pixel_data:
+#                 dir_change_offset = random.uniform(.1,1)
+#                 if p['red_current'] >= red_on*dir_change_offset and p['green_current'] >= green_on*dir_change_offset and p['blue_current'] >= blue_on*dir_change_offset:
+#                     p['fade_up'] = 0
+#                     p['fade_speed'] = random.uniform(fade_speed_min, fade_speed_max)/fade_speed_multiplier
+#                 if p['red_current'] <= red_off*dir_change_offset and p['green_current'] <= green_off*dir_change_offset and p['blue_current'] <= blue_off*dir_change_offset:
+#                     if random.randrange(0,fade_up_chance_ratio) == 1:
+#                         p['fade_up'] = 1
+#                     p['fade_speed'] = random.uniform(fade_speed_min, fade_speed_max)/fade_speed_multiplier
+#                 if p['fade_up']:
+#                     p['red_current'] += abs(red_on-red_off)*p['fade_speed']
+#                     p['green_current'] += abs(green_on-green_off)*p['fade_speed']
+#                     p['blue_current'] += abs(blue_on-blue_off)*p['fade_speed']
+#                 if not p['fade_up']:
+#                     p['red_current'] -= abs(red_on-red_off)*p['fade_speed']  
+#                     p['green_current'] -= abs(green_on-green_off)*p['fade_speed'] 
+#                     p['blue_current'] -= abs(blue_on-blue_off)*p['fade_speed']
+
+#                 p['red_current'] = max(red_off, min(red_on, p['red_current']))
+#                 p['green_current'] = max(green_off, min(green_on, p['green_current']))
+#                 p['blue_current'] = max(blue_off, min(blue_on, p['blue_current']))
+
+#                 pixels[p['id']] = (int(p['red_current']*brightness), int(p['green_current']*brightness), int(p['blue_current']*brightness))
+#             pixels.show()
 
 def fire(pattern_data):
+    fire_start = max(0, pattern_data['start']-1)
+    fire_end = min(pattern_data['end'], num_pixels)
+    speed = pattern_data['speed_max']
+    octives = pattern_data['octives']
+    persistence = pattern_data['persistence']
+    lacunarity = pattern_data['lacunarity']
+    # fade_speed_multiplier = pattern_data['fade_speed_multiplier'] #higher number = slower fade
+    # fade_speed_min = pattern_data['fade_speed_min'] #larger number = faster fade
+    # fade_speed_max = pattern_data['fade_speed_max']
+    # fade_up_chance_ratio = pattern_data['fade_up_chance_ratio']  #a out of b chance of lighting up
+    red_on = pattern_data['red_on']
+    green_on = pattern_data['green_on']
+    blue_on = pattern_data['blue_on']
+    brightness = pattern_data['brightness']
+    red_off = pattern_data['red_off']
+    green_off = pattern_data['green_off']
+    blue_off = pattern_data['blue_off']
+
+    pixel_data = []
+
+    counter = 0.0
+    counter_repeat_limit = 10000
+    counter_direction = 1
+    #initialize strip
+    for p in range(fire_start, fire_end):
+        
+        pixel = {
+            'id': p, 
+            #'fade_speed': speed,
+            # 'fade_up': random.randrange(0,1),
+            
+            'red_current': 0,
+            'green_current': 0,
+            'blue_current': 0,
+            'y': random.random()*random.randrange(1, 1024),
+            'z': random.random()*random.randrange(1, 1024),
+            'base': 0
+        }
+        pixel_data.append(pixel) 
+
+    with app.app_context():
+        while(is_running()):
+            if counter >= counter_repeat_limit:
+                counter_direction *= -1
+            counter += speed*counter_direction
+            for p in pixel_data:
+                #pnoise3(x, y, z, octaves=1, persistence=0.5, lacunarity=2.0repeatx=1024, repeaty=1024, repeatz=1024, base=0.0)
+                fader = pnoise3(counter, p['y'], p['z'], octives, persistence, lacunarity, 1024, 1024, 1024, p['base'])*2 #
+                p['red_current'] = (red_on*fader)
+                p['green_current'] = (green_on*fader)
+                p['blue_current'] = (blue_on*fader)
+
+                p['red_current'] = max(red_off, min(red_on, p['red_current']))
+                p['green_current'] = max(green_off, min(green_on, p['green_current']))
+                p['blue_current'] = max(blue_off, min(blue_on, p['blue_current']))
+
+                pixels[p['id']] = (int(p['red_current']*brightness), int(p['green_current']*brightness), int(p['blue_current']*brightness))
+            
+            pixels.show()
+            time.sleep(.01)
+
+
+#pattern using perlin noise moving down z axis to give effect that pixels are spreading there color to each other
+def contagious(pattern_data):
     fire_start = max(0, pattern_data['start']-1)
     fire_end = min(pattern_data['end'], num_pixels)
     fade_speed_multiplier = pattern_data['fade_speed_multiplier'] #higher number = slower fade
@@ -153,8 +276,13 @@ def fire(pattern_data):
     blue_off = 0
 
     pixel_data = []
+
+    z = 1
+
+    counter = 0.0
     #initialize strip
     for p in range(fire_start, fire_end):
+        z += .05
         pixel = {
             'id': p, 
             'fade_speed': random.uniform(fade_speed_min, fade_speed_max)/fade_speed_multiplier,
@@ -162,35 +290,30 @@ def fire(pattern_data):
             'red_current': 0,
             'green_current': 0,
             'blue_current': 0,
+            'y': z,
+            'z': random.random()*random.randrange(1, 1024),
+            'base': 0
         }
-        pixel_data.append(pixel)
+        pixel_data.append(pixel) 
 
     with app.app_context():
         while(is_running()):
+            counter += .001
             for p in pixel_data:
-                dir_change_offset = random.uniform(.1,1)
-                if p['red_current'] >= red_on*dir_change_offset and p['green_current'] >= green_on*dir_change_offset and p['blue_current'] >= blue_on*dir_change_offset:
-                    p['fade_up'] = 0
-                    p['fade_speed'] = random.uniform(fade_speed_min, fade_speed_max)/fade_speed_multiplier
-                if p['red_current'] <= red_off*dir_change_offset and p['green_current'] <= green_off*dir_change_offset and p['blue_current'] <= blue_off*dir_change_offset:
-                    if random.randrange(0,fade_up_chance_ratio) == 1:
-                        p['fade_up'] = 1
-                    p['fade_speed'] = random.uniform(fade_speed_min, fade_speed_max)/fade_speed_multiplier
-                if p['fade_up']:
-                    p['red_current'] += abs(red_on-red_off)*p['fade_speed']
-                    p['green_current'] += abs(green_on-green_off)*p['fade_speed']
-                    p['blue_current'] += abs(blue_on-blue_off)*p['fade_speed']
-                if not p['fade_up']:
-                    p['red_current'] -= abs(red_on-red_off)*p['fade_speed']  
-                    p['green_current'] -= abs(green_on-green_off)*p['fade_speed'] 
-                    p['blue_current'] -= abs(blue_on-blue_off)*p['fade_speed']
+                fader = pnoise3(p['y'], 1, counter, 5, .9, 2, 1024, 1024, 1024, p['base'])*2 #this
+                #fader = pnoise3(counter, p['y'], p['z'], 5, .5, 2, 1024, 1024, 1024, p['base'])*2
+                p['red_current'] = red_on*fader
+                p['green_current'] = green_on*fader
+                p['blue_current'] = blue_on*fader
 
                 p['red_current'] = max(red_off, min(red_on, p['red_current']))
                 p['green_current'] = max(green_off, min(green_on, p['green_current']))
                 p['blue_current'] = max(blue_off, min(blue_on, p['blue_current']))
 
                 pixels[p['id']] = (int(p['red_current']*brightness), int(p['green_current']*brightness), int(p['blue_current']*brightness))
+            
             pixels.show()
+            time.sleep(.01)
 
 
 def pulse(pattern_data):
@@ -230,6 +353,7 @@ def pulse(pattern_data):
                 red = int((red_on*on_mult) + (red_off*off_mult))
                 green = int((green_on*on_mult) + (green_off*off_mult))
                 blue = int((blue_on*on_mult) + (blue_off*off_mult))
+                #pixels[p] = max(0, min(255,(int(red*brightness)))), max(0, min(255, int(green*brightness))), max(0, min(255, int(blue*brightness))))
                 pixels[p] = (max(0, min(255,(int(red*brightness)))), max(0, min(255, int(green*brightness))), max(0, min(255, int(blue*brightness))))
             pixels.show()
 

@@ -12,16 +12,16 @@ CORS(app)
 
 @app.route("/")
 def find_me():
-    responce = jsonify(success=True, name="Living Room")
+    responce = jsonify(success=True, name="Office")
     return responce
 
 
-@app.route("/start/<sceneid>", methods = ['POST'])
+@app.route("/start/<sceneid>", methods = ['GET'])
 def start(sceneid):
     ledcontroller.initialize_led_strip()
     stop()
     time.sleep(1)
-    if request.method == "POST":
+    if request.method == "GET":
         scene = {
                 'sceneid': sceneid 
             }
@@ -115,7 +115,7 @@ def delete_scenes():
 def get_layouts(sceneid):
     if request.method == "GET":
         layouts = []
-        query = dbconnector.query_db('SELECT pattern, start, end, red_on, green_on, blue_on, red_off, green_off, blue_off, crawl_length, move_right, crawl_bounce, speed_max, fade_speed_min, fade_speed_max, fade_speed_multiplier, fade_up_chance_ratio, colors, on_frequency, off_frequency, marquee_num_on, marquee_num_off, brightness, sceneid, id FROM scene_layouts WHERE sceneid = {};'.format(sceneid))
+        query = dbconnector.query_db('SELECT pattern, start, end, red_on, green_on, blue_on, red_off, green_off, blue_off, crawl_length, move_right, crawl_bounce, speed_max, fade_speed_min, fade_speed_max, fade_speed_multiplier, fade_up_chance_ratio, colors, on_frequency, off_frequency, marquee_num_on, marquee_num_off, brightness, sceneid, id, octives, persistence, lacunarity FROM scene_layouts WHERE sceneid = {};'.format(sceneid))
         for layout in query:
             layouts.append(
                 {
@@ -143,7 +143,10 @@ def get_layouts(sceneid):
                     'marquee_num_off': layout[21],
                     'brightness': layout[22],
                     'sceneid': layout[23],
-                    'id': layout[24]
+                    'id': layout[24],
+                    'octives': layout[25],
+                    'persistence': layout[26],
+                    'lacunarity': layout[27]
                 }
             )
 
@@ -160,7 +163,7 @@ def update_layouts():
     if request.method == "POST":
         data = json.loads(request.data)
         for layout in data:
-            dbconnector.update_db('UPDATE scene_layouts SET pattern = ?, start = ?, end = ?, red_on = ?, green_on = ?, blue_on = ?, red_off = ?, green_off = ?, blue_off = ?, crawl_length = ?, move_right = ?, crawl_bounce = ?, speed_max = ?, fade_speed_min = ?, fade_speed_max = ?, fade_speed_multiplier = ?, fade_up_chance_ratio = ?, colors = ?, on_frequency = ?, off_frequency = ?, marquee_num_on = ?, marquee_num_off = ?, brightness = ? where id = ?', (layout['pattern'], layout['start'], layout['end'], layout['red_on'], layout['green_on'], layout['blue_on'], layout['red_off'], layout['green_off'], layout['blue_off'], layout['crawl_length'], layout['move_right'], layout['crawl_bounce'], layout['speed_max'], layout['fade_speed_min'], layout['fade_speed_max'], layout['fade_speed_multiplier'], layout['fade_up_chance_ratio'], layout['colors'], layout['on_frequency'], layout['off_frequency'], layout['marquee_num_on'], layout['marquee_num_off'], layout['brightness'], layout['id']))
+            dbconnector.update_db('UPDATE scene_layouts SET pattern = ?, start = ?, end = ?, red_on = ?, green_on = ?, blue_on = ?, red_off = ?, green_off = ?, blue_off = ?, crawl_length = ?, move_right = ?, crawl_bounce = ?, speed_max = ?, fade_speed_min = ?, fade_speed_max = ?, fade_speed_multiplier = ?, fade_up_chance_ratio = ?, colors = ?, on_frequency = ?, off_frequency = ?, marquee_num_on = ?, marquee_num_off = ?, brightness = ?, octives = ?, persistence = ?, lacunarity = ? where id = ?', (layout['pattern'], layout['start'], layout['end'], layout['red_on'], layout['green_on'], layout['blue_on'], layout['red_off'], layout['green_off'], layout['blue_off'], layout['crawl_length'], layout['move_right'], layout['crawl_bounce'], layout['speed_max'], layout['fade_speed_min'], layout['fade_speed_max'], layout['fade_speed_multiplier'], layout['fade_up_chance_ratio'], layout['colors'], layout['on_frequency'], layout['off_frequency'], layout['marquee_num_on'], layout['marquee_num_off'], layout['brightness'], layout['octives'], layout['persistence'], layout['lacunarity'], layout['id'],))
         responce = jsonify(success=True)
         return responce
     
@@ -169,7 +172,7 @@ def create_layouts():
     if request.method == "POST":
         data = json.loads(request.data)
         for layout in data:
-            dbconnector.update_db("INSERT INTO scene_layouts (sceneid, pattern, start, end, red_on, green_on, blue_on, red_off, green_off, blue_off, crawl_length, move_right, crawl_bounce, speed_max, fade_speed_min, fade_speed_max, fade_speed_multiplier, fade_up_chance_ratio, colors, on_frequency, off_frequency, marquee_num_on, marquee_num_off, brightness) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? ,? ,? ,? ,?)",  (layout['sceneid'], layout['pattern'], layout['start'], layout['end'], layout['red_on'], layout['green_on'], layout['blue_on'], layout['red_off'], layout['green_off'], layout['blue_off'], layout['crawl_length'], layout['move_right'], layout['crawl_bounce'], layout['speed_max'], layout['fade_speed_min'], layout['fade_speed_max'], layout['fade_speed_multiplier'], layout['fade_up_chance_ratio'], layout['colors'], layout['on_frequency'], layout['off_frequency'], layout['marquee_num_on'], layout['marquee_num_off'], layout['brightness']))
+            dbconnector.update_db("INSERT INTO scene_layouts (sceneid, pattern, start, end, red_on, green_on, blue_on, red_off, green_off, blue_off, crawl_length, move_right, crawl_bounce, speed_max, fade_speed_min, fade_speed_max, fade_speed_multiplier, fade_up_chance_ratio, colors, on_frequency, off_frequency, marquee_num_on, marquee_num_off, brightness, octives, persistence, lacunarity) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? ,? ,? ,? ,? ,? ,? ,?)",  (layout['sceneid'], layout['pattern'], layout['start'], layout['end'], layout['red_on'], layout['green_on'], layout['blue_on'], layout['red_off'], layout['green_off'], layout['blue_off'], layout['crawl_length'], layout['move_right'], layout['crawl_bounce'], layout['speed_max'], layout['fade_speed_min'], layout['fade_speed_max'], layout['fade_speed_multiplier'], layout['fade_up_chance_ratio'], layout['colors'], layout['on_frequency'], layout['off_frequency'], layout['marquee_num_on'], layout['marquee_num_off'], layout['brightness'], layout['octives'], layout['persistence'], layout['lacunarity']))
         responce = jsonify(success=True)
         return responce
 
@@ -186,7 +189,7 @@ def delete_layouts():
 @app.route("/patterndefaults/<pattern>", methods = ["GET"])
 def get_pattern_defaults(pattern):
     if request.method == "GET":
-        query = dbconnector.query_db('SELECT start, end, red_on, green_on, blue_on, red_off, green_off, blue_off, crawl_length, move_right, crawl_bounce, speed_max, fade_speed_min, fade_speed_max, fade_speed_multiplier, fade_up_chance_ratio, colors, on_frequency, off_frequency, marquee_num_on, marquee_num_off, brightness FROM pattern_defaults WHERE pattern = "{}";'.format(pattern))
+        query = dbconnector.query_db('SELECT start, end, red_on, green_on, blue_on, red_off, green_off, blue_off, crawl_length, move_right, crawl_bounce, speed_max, fade_speed_min, fade_speed_max, fade_speed_multiplier, fade_up_chance_ratio, colors, on_frequency, off_frequency, marquee_num_on, marquee_num_off, brightness, octives, persistence, lacunarity FROM pattern_defaults WHERE pattern = "{}";'.format(pattern))
         pattern_defaults = {
             'start': query[0][0],
             'end': query[0][1],
@@ -210,6 +213,9 @@ def get_pattern_defaults(pattern):
             'marquee_num_on': query[0][19],
             'marquee_num_off': query[0][20],
             'brightness': query[0][21],
+            'octives': query[0][22],
+            'persistence': query[0][23],
+            'lacunarity': query[0][24],
         }
         responce = jsonify(pattern_defaults)
         return responce
