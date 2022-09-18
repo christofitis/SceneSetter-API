@@ -12,7 +12,7 @@ CORS(app)
 
 @app.route("/")
 def find_me():
-    responce = jsonify(success=True, name="Office")
+    responce = jsonify(success=True, name="LivingRoom")
     return responce
 
 
